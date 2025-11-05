@@ -1,0 +1,8 @@
+PORT=3001
+NODE_ENV=development
+
+# Telegram Bot Token
+BOT_TOKEN=8093537807:AAFleVv5C03SnOZHbKAQnPeEIWii21c1GEA
+
+# Frontend URL
+FRONTEND_URL=https://manager-battle-tg.vercel.app
