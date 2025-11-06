@@ -132,6 +132,25 @@ app.get('/', (req, res) => {
     });
 });
 
+// Healthcheck для Railway
+app.get('/health', (req, res) => {
+    try {
+        // Проверяем что база работает
+        db.prepare('SELECT 1').get();
+        res.status(200).json({
+            status: 'healthy',
+            database: 'connected',
+            websocket: 'ready',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: 'unhealthy',
+            error: error.message
+        });
+    }
+});
+
 // Создание новой игры
 app.post('/api/game/create', (req, res) => {
     const { settings } = req.body;
@@ -436,7 +455,7 @@ function generateGameCode() {
 
 const PORT = process.env.PORT || 3001;
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔════════════════════════════════════════════╗
 ║                                            ║
@@ -448,4 +467,23 @@ httpServer.listen(PORT, () => {
 ║                                            ║
 ╚════════════════════════════════════════════╝
     `);
+});
+
+// Graceful shutdown для Railway
+process.on('SIGTERM', () => {
+    console.log('📴 SIGTERM получен, завершение работы...');
+    httpServer.close(() => {
+        console.log('✅ Сервер остановлен');
+        db.close();
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('📴 SIGINT получен, завершение работы...');
+    httpServer.close(() => {
+        console.log('✅ Сервер остановлен');
+        db.close();
+        process.exit(0);
+    });
 });
