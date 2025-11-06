@@ -1,8 +1,7 @@
 # Dependencies
 node_modules/
 
-# Database
-*.db
+# Database files (но не папку data/)
 *.db-journal
 
 # Environment
