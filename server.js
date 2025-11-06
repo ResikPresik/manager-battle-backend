@@ -196,11 +196,13 @@ app.post('/api/game/create', (req, res) => {
 // Получение информации об игре
 app.get('/api/game/:code', (req, res) => {
     const { code } = req.params;
+    console.log(`📥 GET /api/game/${code}`);
     
     try {
         const game = db.prepare('SELECT * FROM games WHERE code = ?').get(code);
         
         if (!game) {
+            console.log(`❌ Игра ${code} не найдена`);
             return res.status(404).json({
                 success: false,
                 error: 'Game not found'
@@ -209,6 +211,8 @@ app.get('/api/game/:code', (req, res) => {
         
         const teams = db.prepare('SELECT * FROM teams WHERE game_id = ?').all(game.id);
         const players = db.prepare('SELECT * FROM players WHERE game_id = ?').all(game.id);
+        
+        console.log(`✅ Игра ${code} найдена: ${teams.length} команд, ${players.length} игроков`);
         
         res.json({
             success: true,
@@ -225,6 +229,7 @@ app.get('/api/game/:code', (req, res) => {
             }
         });
     } catch (error) {
+        console.error(`❌ Ошибка /api/game/${code}:`, error);
         res.status(500).json({
             success: false,
             error: error.message
