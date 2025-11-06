@@ -14,8 +14,28 @@ const app = express();
 const httpServer = createServer(app);
 
 // Настройка CORS
+const allowedOrigins = [
+    'https://manager-battle-tg.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://manager-battle-tg-git-main-alekss-projects-6ce0c7ca.vercel.app',
+    'https://manager-battle-tg-alekss-projects-6ce0c7ca.vercel.app'
+];
+
 app.use(cors({
-    origin: ['https://manager-battle-tg.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+    origin: function (origin, callback) {
+        // Разрешаем запросы без origin (мобильные приложения, Postman, etc.)
+        if (!origin) return callback(null, true);
+        
+        // Разрешаем если начинается с допустимых доменов
+        if (origin.includes('vercel.app') || 
+            origin.includes('localhost') ||
+            allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Временно разрешаем все для отладки
+        }
+    },
     credentials: true
 }));
 
@@ -24,14 +44,31 @@ app.use(express.json());
 // Инициализация Socket.IO
 const io = new Server(httpServer, {
     cors: {
-        origin: ['https://manager-battle-tg.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+        origin: function (origin, callback) {
+            // Разрешаем всё для отладки
+            callback(null, true);
+        },
         methods: ['GET', 'POST'],
-        credentials: true
-    }
+        credentials: true,
+        allowedHeaders: ['Content-Type']
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true
 });
 
 // Инициализация базы данных
-const db = new Database('game.db');
+// Используем путь который сохраняется на Railway
+const dbPath = process.env.DATABASE_PATH || './data/game.db';
+
+// Создаём директорию если её нет
+import { mkdirSync, existsSync } from 'fs';
+const dbDir = dbPath.substring(0, dbPath.lastIndexOf('/'));
+if (dbDir && !existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new Database(dbPath);
+console.log(`💾 База данных: ${dbPath}`);
 
 // Создание таблиц
 db.exec(`
@@ -275,9 +312,12 @@ app.post('/api/game/:code/level-data', (req, res) => {
 
 io.on('connection', (socket) => {
     console.log('🔌 Новое подключение:', socket.id);
+    console.log('   Origin:', socket.handshake.headers.origin);
+    console.log('   Transport:', socket.conn.transport.name);
     
     // Присоединение к игре
     socket.on('join-game', async (data) => {
+        console.log('📥 join-game:', data);
         const { code, playerName, teamId, role } = data;
         
         try {
@@ -360,11 +400,20 @@ io.on('connection', (socket) => {
     });
     
     // Отключение
-    socket.on('disconnect', () => {
-        console.log('🔌 Отключение:', socket.id);
+    socket.on('disconnect', (reason) => {
+        console.log('🔌 Отключение:', socket.id, 'Причина:', reason);
         
         // Удаляем игрока из БД
         db.prepare('DELETE FROM players WHERE socket_id = ?').run(socket.id);
+    });
+    
+    // Обработка ошибок
+    socket.on('error', (error) => {
+        console.error('❌ Ошибка Socket:', socket.id, error);
+    });
+    
+    socket.on('connect_error', (error) => {
+        console.error('❌ Ошибка подключения:', error);
     });
 });
 
